@@ -221,7 +221,7 @@ void WidgetGallery::createBottomLeftTabWidget() {
   tableWidget->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
 
   QHBoxLayout* tab1hbox = new QHBoxLayout;
-  tab1hbox->setMargin(5);
+  tab1hbox->setContentsMargins(5, 5, 5, 5);
   tab1hbox->addWidget(tableWidget);
   tab1->setLayout(tab1hbox);
 
@@ -236,7 +236,7 @@ void WidgetGallery::createBottomLeftTabWidget() {
                             "How I wonder what you are!\n"));
 
   QHBoxLayout* tab2hbox = new QHBoxLayout;
-  tab2hbox->setMargin(5);
+  tab2hbox->setContentsMargins(5, 5, 5, 5);
   tab2hbox->addWidget(textEdit);
   tab2->setLayout(tab2hbox);
 
