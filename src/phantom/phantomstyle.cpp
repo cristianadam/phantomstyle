@@ -467,7 +467,9 @@ Q_ALWAYS_INLINE quint64 fastfragile_hash_qpalette(const QPalette& p) {
   // guard for it, so that it will default to a more safe definition on the
   // next guaranteed big breaking change for Qt. A warning will hopefully get
   // someone to double-check it at some point in the future.
+#ifndef _MSC_VER
 #warning "Verify contents and layout of QPalette::cacheKey() have not changed"
+#endif
   QtPrivate::QHashCombine c;
   uint h = qHash(p.currentColorGroup());
   h = c(h, (uint)(x.u & 0xFFFFFFFFu));
