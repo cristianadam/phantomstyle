@@ -206,8 +206,8 @@ QColor buttonColor(const QPalette& pal) {
 QColor highlightedOutlineOf(const QPalette& pal) {
   return adjustLightness(pal.color(QPalette::Highlight), -0.05);
 }
-QColor dividerColor(const QColor& underlying) {
-  return adjustLightness(underlying, -0.05);
+QColor dividerColor(const QColor& underlying, bool isLight) {
+  return adjustLightness(underlying, isLight ? -0.05 : 0.15);
 }
 QColor outlineOf(const QPalette& pal) {
   return adjustLightness(pal.color(QPalette::Window), -0.1);
@@ -230,7 +230,9 @@ QColor sliderGutterShadowOf(const QColor& underlying) {
 QColor specularOf(const QColor& underlying) {
   return adjustLightness(underlying, 0.03);
 }
-QColor pressedOf(const QColor& color) { return adjustLightness(color, -0.02); }
+QColor pressedOf(const QColor& color, bool isLight) {
+  return adjustLightness(color, isLight ? -0.02 : 0.02);
+}
 QColor indicatorColorOf(const QPalette& palette,
                         QPalette::ColorGroup group = QPalette::Current) {
   return Grad(palette.color(group, QPalette::WindowText),
@@ -276,6 +278,7 @@ enum SwatchColor {
   S_highlightedText,
   S_scrollbarGutter,
   S_window_outline,
+  S_window_outline_dark_visible,
   S_window_specular,
   S_window_divider,
   S_window_lighter,
@@ -353,13 +356,14 @@ Q_NEVER_INLINE void PhSwatch::loadFromQPalette(const QPalette& pal) {
   using namespace SwatchColors;
   namespace Dc = DeriveColors;
   const bool isEnabled = pal.currentColorGroup() != QPalette::Disabled;
+  const bool isLight = Dc::hack_isLightPalette(pal);
   QColor colors[Num_SwatchColors];
   colors[S_none] = QColor();
 
   colors[S_window] = pal.color(QPalette::Window);
   colors[S_button] = pal.color(QPalette::Button);
   if (colors[S_button] == colors[S_window])
-    colors[S_button] = Dc::adjustLightness(colors[S_button], 0.01);
+    colors[S_button] = Dc::adjustLightness(colors[S_button], isLight ? 0.01 : 0.05);
   colors[S_base] = pal.color(QPalette::Base);
   colors[S_text] = pal.color(QPalette::Text);
   colors[S_windowText] = pal.color(QPalette::WindowText);
@@ -373,22 +377,27 @@ Q_NEVER_INLINE void PhSwatch::loadFromQPalette(const QPalette& pal) {
   // rid of conditional color branching and try to do it some other way.
   colors[S_window_outline] =
       Dc::adjustLightness(colors[S_window], isEnabled ? -0.1 : -0.07);
-  colors[S_window_specular] =
-      isEnabled ? Dc::specularOf(colors[S_window]) : colors[S_window];
-  colors[S_window_divider] = Dc::dividerColor(colors[S_window]);
+  colors[S_window_specular] = isEnabled && isLight
+                                  ? Dc::specularOf(colors[S_window])
+                                  : colors[S_window];
+  colors[S_window_divider] = Dc::dividerColor(colors[S_window], isLight);
   colors[S_window_lighter] = Dc::lightShadeOf(colors[S_window]);
   colors[S_window_darker] = Dc::darkShadeOf(colors[S_window]);
+  colors[S_window_outline_dark_visible] =
+      isLight ? colors[S_window_outline]
+              : Dc::adjustLightness(colors[S_window], 0.15);
   colors[S_button_specular] =
       isEnabled ? Dc::specularOf(colors[S_button]) : colors[S_button];
-  colors[S_button_pressed] = Dc::pressedOf(colors[S_button]);
+  colors[S_button_pressed] = Dc::pressedOf(colors[S_button], isLight);
   colors[S_button_pressed_specular] =
       isEnabled ? Dc::specularOf(colors[S_button_pressed])
                 : colors[S_button_pressed];
   colors[S_base_shadow] = Dc::overhangShadowOf(colors[S_base]);
-  colors[S_base_divider] = Dc::dividerColor(colors[S_base]);
+  colors[S_base_divider] = colors[S_window_divider];
   colors[S_windowText_disabled] =
       pal.color(QPalette::Disabled, QPalette::WindowText);
-  colors[S_highlight_outline] = Dc::adjustLightness(colors[S_highlight], -0.05);
+  colors[S_highlight_outline] = isLight ? Dc::adjustLightness(colors[S_highlight], -0.05)
+                                        : Dc::adjustLightness(colors[S_highlight], 0.05);
   colors[S_highlight_specular] =
       isEnabled ? Dc::specularOf(colors[S_highlight]) : colors[S_highlight];
   colors[S_progressBar_outline] = Dc::progressBarOutlineColorOf(pal);
@@ -1391,7 +1400,7 @@ void PhantomStyle::drawPrimitive(PrimitiveElement elem,
       break;
     }
     Ph::fillRectOutline(painter, option->rect, 1,
-                        swatch.color(S_window_outline));
+                        swatch.color(S_window_outline_dark_visible));
     break;
   }
   case PE_FrameMenu: {
@@ -1722,7 +1731,7 @@ void PhantomStyle::drawPrimitive(PrimitiveElement elem,
     bool hasFocus = option->state & State_HasFocus;
     bool isEnabled = option->state & State_Enabled;
     const qreal rounding = Ph::LineEdit_Rounding;
-    auto pen = hasFocus ? S_highlight_outline : S_window_outline;
+    auto pen = hasFocus ? S_highlight_outline : S_window_outline_dark_visible;
     Ph::PSave save(painter);
     Ph::paintBorderedRoundRect(painter, r, rounding, swatch, pen, S_none);
     save.restore();
@@ -1764,7 +1773,7 @@ void PhantomStyle::drawPrimitive(PrimitiveElement elem,
     bool isEnabled = option->state & State_Enabled;
     bool isPressed = state & State_Sunken;
     Swatchy outlineColor =
-        isHighlighted ? S_highlight_outline : S_window_outline;
+        isHighlighted ? S_highlight_outline : S_window_outline_dark_visible;
     Swatchy bgFillColor = isPressed ? S_highlight : S_base;
     Swatchy fgColor = isFlat ? S_windowText : S_text;
     if (isPressed && !isFlat) {
@@ -1814,7 +1823,7 @@ void PhantomStyle::drawPrimitive(PrimitiveElement elem,
     bool isSunken = state & State_Sunken;
     bool isEnabled = state & State_Enabled;
     Swatchy outlineColor =
-        isHighlighted ? S_highlight_outline : S_window_outline;
+        isHighlighted ? S_highlight_outline : S_window_outline_dark_visible;
     Swatchy bgFillColor = isSunken ? S_highlight : S_base;
     QPointF circleCenter(rx + rw / 2.0, ry + rh / 2.0);
     const qreal lineThickness = 1.0;
@@ -2019,7 +2028,7 @@ void PhantomStyle::drawPrimitive(PrimitiveElement elem,
     if (!twf)
       break;
     Ph::fillRectOutline(painter, option->rect, 1,
-                        swatch.color(S_window_outline));
+                        swatch.color(S_window_outline_dark_visible));
     Ph::fillRectOutline(painter, bgRect, 1, swatch.color(S_tabFrame_specular));
 #endif // QT_CONFIG(tabwidget)
     break;
@@ -2418,7 +2427,7 @@ void PhantomStyle::drawControl(ControlElement element,
     }
     QRect bgRect = Ph::expandRect(rect, edges, -1);
     painter->fillRect(bgRect, swatch.color(S_window));
-    Ph::fillRectEdges(painter, rect, edges, 1, swatch.color(S_window_outline));
+    Ph::fillRectEdges(painter, rect, edges, 1, swatch.color(S_window_outline_dark_visible));
     break;
   }
   case CE_HeaderLabel: {
@@ -3027,8 +3036,9 @@ void PhantomStyle::drawControl(ControlElement element,
                        : S_none;
       }
     }
+    auto frameColor = isSelected ? S_window_outline_dark_visible : S_window_outline;
     Ph::paintBorderedRoundRect(painter, drawRect, rounding, swatch,
-                               S_window_outline, thisFillColor);
+                               frameColor, thisFillColor);
     Ph::paintBorderedRoundRect(painter, drawRect.adjusted(1, 1, -1, -1),
                                rounding, swatch, specular, S_none);
     painter->restore();
@@ -3239,7 +3249,7 @@ void PhantomStyle::drawComplexControl(ComplexControl control,
                         swatch.color(S_window_outline));
       Ph::PSave save(painter);
       // Outline over entire frame
-      Swatchy outlineColor = hasFocus ? S_highlight_outline : S_window_outline;
+      Swatchy outlineColor = hasFocus ? S_highlight_outline : S_window_outline_dark_visible;
       Ph::paintBorderedRoundRect(painter, rect, rounding, swatch, outlineColor,
                                  S_none);
       save.restore();
@@ -3873,7 +3883,7 @@ void PhantomStyle::drawComplexControl(ComplexControl control,
           br.setRight(fr.left() - 1);
         }
         Qt::Edge edge = isLeftToRight ? Qt::LeftEdge : Qt::RightEdge;
-        Swatchy color = hasFocus ? S_highlight_outline : S_window_outline;
+        Swatchy color = hasFocus ? S_highlight_outline : S_window_outline_dark_visible;
         br.adjust(0, 1, 0, -1);
         Ph::fillRectEdges(painter, br, edge, 1, swatch.color(color));
         br.adjust(1, 0, -1, 0);
