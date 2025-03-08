@@ -31,7 +31,7 @@ MainWindow::MainWindow(QWidget* parent)
   auto fm = mb->addMenu("&File");
   fm->addAction("New");
   auto openAction = fm->addAction("Open");
-  openAction->setCheckable(true);
+  openAction->setIcon(style()->standardIcon(QStyle::SP_DirOpenIcon));
   fm->addSeparator();
   auto subMenu = fm->addMenu("Sub Menu");
   fm->addAction("Save");
@@ -75,7 +75,8 @@ MainWindow::MainWindow(QWidget* parent)
   c3->setChecked(true);
   auto sep2 = cMenu->addSeparator();
   sep2->setText("Hey there here's some really long text for this separator");
-  cMenu->addAction("Five");
+  auto c5 = cMenu->addAction("Five");
+  c5->setIcon(style()->standardIcon(QStyle::SP_TrashIcon));
 
   cMenu->addSection("SomeSec");
   cMenu->addAction("Six");

@@ -144,7 +144,7 @@ static const qreal MenuItem_SubMenuArrowSpaceFontRatio = 1.0 / 1.5;
 static const qreal MenuItem_SubMenuArrowWidthFontRatio = 1.0 / 2.75;
 static const qreal MenuItem_SeparatorHeightFontRatio = 1.0 / 1.5;
 static const qreal MenuItem_CheckMarkVerticalInsetFontRatio = 1.0 / 5.0;
-static const qreal MenuItem_IconRightSpaceFontRatio = 1.0 / 3.0;
+static const qreal MenuItem_IconRightSpaceFontRatio = 1.0 / 1.5;
 
 static const bool BranchesOnEdge = false;
 static const bool OverhangShadows = false;
@@ -754,20 +754,21 @@ QRect menuItemCheckRect(const MenuItemMetrics& metrics,
 }
 QRect menuItemIconRect(const MenuItemMetrics& metrics,
                        Qt::LayoutDirection direction, QRect itemRect,
-                       bool hasArrow) {
+                       bool hasArrow, bool hasIcon, bool hasCheck) {
   QRect r = menuItemContentRect(metrics, itemRect, hasArrow);
-  r.setX(r.x() + metrics.checkWidth + metrics.checkRightSpace);
+  if (hasCheck && hasIcon)
+    r.setX(r.x() + metrics.checkWidth + metrics.checkRightSpace);
   r.setSize(QSize(metrics.fontHeight, metrics.fontHeight));
   return QStyle::visualRect(direction, itemRect, r) & itemRect;
 }
 QRect menuItemTextRect(const MenuItemMetrics& metrics,
                        Qt::LayoutDirection direction, QRect itemRect,
-                       bool hasArrow, bool hasIcon, int tabWidth) {
+                       bool hasArrow, bool hasIcon, bool hasCheck,
+                       int tabWidth) {
   QRect r = menuItemContentRect(metrics, itemRect, hasArrow);
-  r.setX(r.x() + metrics.checkWidth + metrics.checkRightSpace);
-  if (hasIcon) {
-    r.setX(r.x() + metrics.fontHeight + metrics.iconRightSpace);
-  }
+  if (hasCheck && hasIcon)
+    r.setX(r.x() + metrics.checkWidth + metrics.checkRightSpace);
+  r.setX(r.x() + metrics.fontHeight + metrics.iconRightSpace);
   r.setWidth(r.width() - tabWidth);
   r.setHeight(metrics.fontHeight);
   r &= itemRect;
@@ -2716,10 +2717,11 @@ void PhantomStyle::drawControl(ControlElement element,
     }
 
     const bool hasIcon = !menuItem->icon.isNull();
+    const bool hasCheck = menuItem->checked;
 
     if (hasIcon) {
       QRect iconRect = Ph::menuItemIconRect(metrics, option->direction,
-                                            itemRect, hasSubMenu);
+                                            itemRect, hasSubMenu, hasIcon, hasCheck);
       QIcon::Mode mode = isEnabled ? QIcon::Normal : QIcon::Disabled;
       if (isSelected && isEnabled)
         mode = QIcon::Selected;
@@ -2752,7 +2754,7 @@ void PhantomStyle::drawControl(ControlElement element,
     if (!s.isEmpty()) {
       QRect textRect =
           Ph::menuItemTextRect(metrics, option->direction, itemRect, hasSubMenu,
-                               hasIcon, menuItem->reservedShortcutWidth);
+                               hasIcon, hasCheck, menuItem->reservedShortcutWidth);
       int t = s.indexOf(QLatin1Char('\t'));
       int text_flags = Qt::AlignLeft | Qt::AlignTop | Qt::TextShowMnemonic |
                        Qt::TextDontClip | Qt::TextSingleLine;
@@ -4289,6 +4291,7 @@ QSize PhantomStyle::sizeFromContents(ContentsType type,
     bool isSeparator =
         menuItem->menuItemType == QStyleOptionMenuItem::Separator;
     int fontMetricsHeight = -1;
+    bool hasCheck = menuItem->checked;
     // See notes at CE_MenuItem and SH_ComboBox_Popup for more information
 #if QT_CONFIG(combobox)
     if (Ph::UseQMenuForComboBoxPopup &&
@@ -4315,15 +4318,15 @@ QSize PhantomStyle::sizeFromContents(ContentsType type,
     // Calculating the right margins requires knowing whether or not the menu
     // item has a submenu arrow.
     w += metrics.leftMargin;
-    // Phantom treats every menu item with the same space on the left for a
-    // check mark, even if it doesn't have the checkable property.
-    w += metrics.checkWidth + metrics.checkRightSpace;
 
-    if (!menuItem->icon.isNull()) {
-      // Phantom disregards any user-specified icon sizing at the moment.
-      w += metrics.fontHeight;
-      w += metrics.iconRightSpace;
-    }
+    if (hasCheck)
+      w += metrics.checkWidth + metrics.checkRightSpace;
+
+    // Phantom treats every menu item with the same space on the left for an
+    // icon, even if it doesn't have an icon.
+    // Phantom disregards any user-specified icon sizing at the moment.
+    w += metrics.fontHeight;
+    w += metrics.iconRightSpace;
 
     // Tab character is used for separating the shortcut text
     if (hasTabChar)
