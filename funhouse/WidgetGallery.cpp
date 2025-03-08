@@ -81,7 +81,7 @@ WidgetGallery::WidgetGallery(QWidget* parent) : QWidget(parent) {
   //! [0]
 
   //! [1]
-  connect(styleComboBox, SIGNAL(activated(QString)),
+  connect(styleComboBox, SIGNAL(currentTextChanged(QString)),
           //! [1] //! [2]
           this, SLOT(changeStyle(QString)));
   connect(useStylePaletteCheckBox, SIGNAL(toggled(bool)), this,
