@@ -43,6 +43,7 @@ MainWindow::MainWindow(QWidget* parent)
   Q_UNUSED(quiteBitAction)
   fooAction->setCheckable(true);
   fooAction->setIcon(style()->standardIcon(QStyle::SP_DirIcon));
+  barAction->setCheckable(true);
   vm->setDefaultAction(barAction);
   bazAction->setEnabled(false);
 

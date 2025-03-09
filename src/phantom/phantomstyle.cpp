@@ -144,7 +144,7 @@ static const qreal MenuItem_SubMenuArrowSpaceFontRatio = 1.0 / 1.5;
 static const qreal MenuItem_SubMenuArrowWidthFontRatio = 1.0 / 2.75;
 static const qreal MenuItem_SeparatorHeightFontRatio = 1.0 / 1.5;
 static const qreal MenuItem_CheckMarkVerticalInsetFontRatio = 1.0 / 5.0;
-static const qreal MenuItem_IconRightSpaceFontRatio = 1.0 / 1.5;
+static const qreal MenuItem_IconRightSpaceFontRatio = 1.0 / 3.0;
 
 static const bool BranchesOnEdge = false;
 static const bool OverhangShadows = false;
@@ -758,25 +758,21 @@ QRect menuItemCheckRect(const MenuItemMetrics& metrics,
   if (checkVMargin < 0)
     checkVMargin = 0;
   r.setSize(QSize(metrics.checkWidth, metrics.fontHeight));
-  r.adjust(0, checkVMargin, 0, -checkVMargin);
+  int offset = qAbs(metrics.fontHeight - metrics.checkWidth) / 2;
+  r.adjust(offset, checkVMargin, offset, -checkVMargin);
   return QStyle::visualRect(direction, itemRect, r) & itemRect;
 }
 QRect menuItemIconRect(const MenuItemMetrics& metrics,
                        Qt::LayoutDirection direction, QRect itemRect,
-                       bool hasArrow, bool hasIcon, bool hasCheck) {
+                       bool hasArrow, bool hasIcon) {
   QRect r = menuItemContentRect(metrics, itemRect, hasArrow);
-  if (hasCheck && hasIcon)
-    r.setX(r.x() + metrics.checkWidth + metrics.checkRightSpace);
   r.setSize(QSize(metrics.fontHeight, metrics.fontHeight));
   return QStyle::visualRect(direction, itemRect, r) & itemRect;
 }
 QRect menuItemTextRect(const MenuItemMetrics& metrics,
                        Qt::LayoutDirection direction, QRect itemRect,
-                       bool hasArrow, bool hasIcon, bool hasCheck,
-                       int tabWidth) {
+                       bool hasArrow, bool hasIcon, int tabWidth) {
   QRect r = menuItemContentRect(metrics, itemRect, hasArrow);
-  if (hasCheck && hasIcon)
-    r.setX(r.x() + metrics.checkWidth + metrics.checkRightSpace);
   r.setX(r.x() + metrics.fontHeight + metrics.iconRightSpace);
   r.setWidth(r.width() - tabWidth);
   r.setHeight(metrics.fontHeight);
@@ -2687,6 +2683,7 @@ void PhantomStyle::drawControl(ControlElement element,
       painter->fillRect(option->rect, swatch.color(fillColor));
     }
 
+    const bool hasIcon = !menuItem->icon.isNull();
     if (isCheckable) {
       // Note: check rect might be misaligned vertically if it's a menu from a
       // combo box. Probably a bug in Qt code?
@@ -2718,23 +2715,22 @@ void PhantomStyle::drawControl(ControlElement element,
         // menu instead of click-clicking.)
         //
         // if ((isChecked && !isSunken) || (!isChecked && isSunken)) {
-        if (isChecked) {
+        if (isChecked && !hasIcon) {
           Ph::drawCheck(painter, d->checkBox_pen_scratch, checkRect, swatch,
                         signColor);
         }
       }
     }
 
-    const bool hasIcon = !menuItem->icon.isNull();
-    const bool hasCheck = menuItem->checked;
-
     if (hasIcon) {
       QRect iconRect = Ph::menuItemIconRect(metrics, option->direction,
-                                            itemRect, hasSubMenu, hasIcon, hasCheck);
+                                            itemRect, hasSubMenu, hasIcon);
       QIcon::Mode mode = isEnabled ? QIcon::Normal : QIcon::Disabled;
       if (isSelected && isEnabled)
         mode = QIcon::Selected;
       QIcon::State state = isChecked ? QIcon::On : QIcon::Off;
+      if (isCheckable && !isChecked)
+        mode = QIcon::Disabled;
 
       // TODO hmm, we might be ending up with blurry icons at size 15 instead
       // of 16 for example on Windows.
@@ -2763,7 +2759,7 @@ void PhantomStyle::drawControl(ControlElement element,
     if (!s.isEmpty()) {
       QRect textRect =
           Ph::menuItemTextRect(metrics, option->direction, itemRect, hasSubMenu,
-                               hasIcon, hasCheck, menuItem->reservedShortcutWidth);
+                               hasIcon, menuItem->reservedShortcutWidth);
       int t = s.indexOf(QLatin1Char('\t'));
       int text_flags = Qt::AlignLeft | Qt::AlignTop | Qt::TextShowMnemonic |
                        Qt::TextDontClip | Qt::TextSingleLine;
@@ -4166,9 +4162,6 @@ QSize PhantomStyle::sizeFromContents(ContentsType type,
     // Calculating the right margins requires knowing whether or not the menu
     // item has a submenu arrow.
     w += metrics.leftMargin;
-
-    if (hasCheck)
-      w += metrics.checkWidth + metrics.checkRightSpace;
 
     // Phantom treats every menu item with the same space on the left for an
     // icon, even if it doesn't have an icon.
