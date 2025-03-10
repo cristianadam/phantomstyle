@@ -1465,6 +1465,14 @@ void PhantomStyle::drawPrimitive(PrimitiveElement elem,
         r.setWidth(r.height());
     }
     int adj = qMin(r.width(), r.height()) / 4;
+
+    // Make sure to have the same arrow size when receiving less width than height.
+    if (r.width() < r.height()) {
+        adj = qMax(r.width(), r.height()) / 4;
+        int sizeDiff = r.height() - r.width();
+        r.setWidth(r.height());
+        r.moveLeft(r.x() - sizeDiff / 2);
+    }
     r.adjust(adj, adj, -adj, -adj);
     Ph::drawArrow(painter, r, arrow, swatch.brush(color));
     break;
