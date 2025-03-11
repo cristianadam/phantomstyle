@@ -3047,6 +3047,14 @@ void PhantomStyle::drawControl(ControlElement element,
                                rounding, swatch, specular, S_none);
     painter->restore();
     if (isSelected) {
+      QRect highlightRect = Ph::expandRect(option->rect, outerEdge, -2);
+      highlightRect =
+          Ph::rectFromInnerEdgeWithThickness(highlightRect, outerEdge, 3);
+      highlightRect =
+          Ph::expandRect(highlightRect, edgeTowardNextTab, lastTab ? -2 : -1);
+      highlightRect = Ph::expandRect(highlightRect, edgeAwayNextTab, -2);
+      painter->fillRect(highlightRect, swatch.color(S_highlight));
+
       QRect refillRect =
           Ph::rectFromInnerEdgeWithThickness(shapeClipRect, innerEdge, 2);
       refillRect = Ph::rectTranslatedTowardEdge(refillRect, innerEdge, 2);
