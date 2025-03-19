@@ -154,9 +154,9 @@ static const bool MenuExtraBottomMargin = true;
 static const bool MenuBarLeftMargin = false;
 static const bool AllowToolBarAutoRaise = true;
 // Note that this only applies to the disclosure etc. decorators in tree views.
-static const bool ShowItemViewDecorationSelected = false;
+static const bool ShowItemViewDecorationSelected = true;
 static const bool UseQMenuForComboBoxPopup = true;
-static const bool ItemView_UseFontHeightForDecorationSize = true;
+static const bool ItemView_UseFontHeightForDecorationSize = false;
 
 // Whether or not the non-raised tabs in a tab bar have shininess/highlights to
 // them. Setting this to false adds an extra visual hint for distinguishing
@@ -1070,6 +1070,79 @@ Q_NEVER_INLINE void drawArrow(QPainter* painter, QRect rect, Qt::ArrowType type,
       swatch.brush(allowEnabled ? S_indicator_current : S_indicator_disabled));
 }
 
+Q_NEVER_INLINE void drawArrowOutline(QPainter* p, QRect rect,
+                                     Qt::ArrowType arrowDirection,
+                                     const QPen& pen) {
+  const qreal ArrowBaseRatio = 0.51;
+  qreal irx, iry, irw, irh;
+  QRectF(rect).getRect(&irx, &iry, &irw, &irh);
+  if (irw < 1.0 || irh < 1.0)
+    return;
+  qreal dw, dh;
+  if (arrowDirection == Qt::LeftArrow || arrowDirection == Qt::RightArrow) {
+    dw = ArrowBaseRatio;
+    dh = 1.0;
+  } else {
+    dw = 1.0;
+    dh = ArrowBaseRatio;
+  }
+  QSizeF sz = QSizeF(dw, dh).scaled(irw, irh, Qt::KeepAspectRatio);
+  qreal aw = sz.width();
+  qreal ah = sz.height();
+  qreal ax, ay;
+  ax = irx + (irw - aw) / 2;
+  ay = iry + (irh - ah) / 2;
+  QRectF arrowRect(ax, ay, aw, ah);
+  QPointF points[3];
+  switch (arrowDirection) {
+  case Qt::DownArrow:
+    arrowRect.setTop(std::round(arrowRect.top()));
+    points[0] = arrowRect.topLeft();
+    points[1] = arrowRect.topRight();
+    points[2] = QPointF(arrowRect.center().x(), arrowRect.bottom());
+    break;
+  case Qt::RightArrow: {
+    arrowRect.setLeft(std::round(arrowRect.left()));
+    points[0] = arrowRect.topLeft();
+    points[1] = arrowRect.bottomLeft();
+    points[2] = QPointF(arrowRect.right(), arrowRect.center().y());
+    break;
+  }
+  case Qt::LeftArrow:
+    arrowRect.setRight(std::round(arrowRect.right()));
+    points[0] = arrowRect.topRight();
+    points[1] = arrowRect.bottomRight();
+    points[2] = QPointF(arrowRect.left(), arrowRect.center().y());
+    break;
+  case Qt::UpArrow:
+  default:
+    arrowRect.setBottom(std::round(arrowRect.bottom()));
+    points[0] = arrowRect.bottomLeft();
+    points[1] = arrowRect.bottomRight();
+    points[2] = QPointF(arrowRect.center().x(), arrowRect.top());
+    break;
+  }
+  auto oldPen = p->pen();
+  auto oldBrush = p->brush();
+  bool oldAA = p->testRenderHint(QPainter::Antialiasing);
+  p->setPen(pen);
+  p->setBrush(Qt::NoBrush);
+  if (!oldAA) {
+    p->setRenderHint(QPainter::Antialiasing);
+  }
+  QPainterPath path;
+  path.moveTo(points[0]);
+  path.lineTo(points[2]);
+  path.lineTo(points[1]);
+  p->drawPath(path);
+  p->setPen(oldPen);
+  p->setBrush(oldBrush);
+  if (!oldAA) {
+    p->setRenderHint(QPainter::Antialiasing, false);
+  }
+}
+
+
 // This draws exactly within the rect provided. If you provide a square rect,
 // it will appear too wide -- you probably want to shrink the width of your
 // square first by multiplying it with CheckMark_WidthOfHeightScale.
@@ -1464,17 +1537,21 @@ void PhantomStyle::drawPrimitive(PrimitiveElement elem,
       if (r.width() < r.height())
         r.setWidth(r.height());
     }
-    int adj = qMin(r.width(), r.height()) / 4;
+    int adj = qMin(r.width(), r.height()) / 2.75;
 
     // Make sure to have the same arrow size when receiving less width than height.
     if (r.width() < r.height()) {
-        adj = qMax(r.width(), r.height()) / 4;
+        adj = qMax(r.width(), r.height()) / 2.75;
         int sizeDiff = r.height() - r.width();
         r.setWidth(r.height());
         r.moveLeft(r.x() - sizeDiff / 2);
     }
     r.adjust(adj, adj, -adj, -adj);
-    Ph::drawArrow(painter, r, arrow, swatch.brush(color));
+
+    auto pen = swatch.pen(color);
+    pen.setCapStyle(Qt::RoundCap);
+    pen.setWidthF(1.5);
+    Ph::drawArrowOutline(painter, r, arrow, pen);
     break;
   }
   case PE_IndicatorMenuCheckMark: {
@@ -4095,12 +4172,6 @@ int PhantomStyle::pixelMetric(PixelMetric metric, const QStyleOption* option,
   case PM_ScrollView_ScrollBarOverlap:
     val = 0;
     break;
-  case PM_TreeViewIndentation: {
-    if (widget)
-      return widget->fontMetrics().height();
-    val = 12;
-    break;
-  }
   default:
     return QCommonStyle::pixelMetric(metric, option, widget);
   }
@@ -4278,6 +4349,9 @@ QSize PhantomStyle::sizeFromContents(ContentsType type,
     if (!vopt)
       break;
     QSize sz = QCommonStyle::sizeFromContents(type, option, size, widget);
+    // Do what macOS and Windows style do, add two pixels to the height.
+    sz.setHeight(sz.height() + 2);
+
     // QCommonStyle has a bunch of complicated logic for laying out/calculating
     // rects of view items, which is locked behind a private data guy. In
     // sizeFromContents for CT_ItemViewItem, it unions all of the item row's
